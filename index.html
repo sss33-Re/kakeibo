@@ -260,23 +260,28 @@ select.si{flex:0 0 auto;font-size:12px;}
       <div class="card">
         <div class="card-head">
           <span class="card-title">💳 支払方法別 集計</span>
-          <span style="font-size:11px;color:var(--muted);">カード / 現金 / 口座引落</span>
+          <span style="font-size:11px;color:var(--muted);">楽天カード / その他カード / 現金 / 口座引落</span>
         </div>
         <div class="card-body">
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;">
-            <div style="background:var(--s2);border:1px solid var(--border);border-radius:9px;padding:14px;text-align:center;">
-              <div style="font-size:11px;color:var(--muted);margin-bottom:5px;">💳 カード</div>
-              <div id="pay-card" style="font-size:19px;font-weight:700;font-family:'DM Mono',monospace;color:var(--blue);">¥0</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;">
+            <div style="background:var(--s2);border:1px solid var(--border);border-radius:9px;padding:12px;text-align:center;">
+              <div style="font-size:11px;color:var(--muted);margin-bottom:5px;">💳 楽天カード</div>
+              <div id="pay-card" style="font-size:17px;font-weight:700;font-family:'DM Mono',monospace;color:var(--red2);">¥0</div>
               <div id="pay-card-sub" style="font-size:11px;color:var(--muted);margin-top:3px;">0件</div>
             </div>
-            <div style="background:var(--s2);border:1px solid var(--border);border-radius:9px;padding:14px;text-align:center;">
+            <div style="background:var(--s2);border:1px solid var(--border);border-radius:9px;padding:12px;text-align:center;">
+              <div style="font-size:11px;color:var(--muted);margin-bottom:5px;">💳 その他カード</div>
+              <div id="pay-card2" style="font-size:17px;font-weight:700;font-family:'DM Mono',monospace;color:var(--blue);">¥0</div>
+              <div id="pay-card2-sub" style="font-size:11px;color:var(--muted);margin-top:3px;">0件</div>
+            </div>
+            <div style="background:var(--s2);border:1px solid var(--border);border-radius:9px;padding:12px;text-align:center;">
               <div style="font-size:11px;color:var(--muted);margin-bottom:5px;">💴 現金</div>
-              <div id="pay-cash" style="font-size:19px;font-weight:700;font-family:'DM Mono',monospace;color:var(--green);">¥0</div>
+              <div id="pay-cash" style="font-size:17px;font-weight:700;font-family:'DM Mono',monospace;color:var(--green);">¥0</div>
               <div id="pay-cash-sub" style="font-size:11px;color:var(--muted);margin-top:3px;">0件</div>
             </div>
-            <div style="background:var(--s2);border:1px solid var(--border);border-radius:9px;padding:14px;text-align:center;">
+            <div style="background:var(--s2);border:1px solid var(--border);border-radius:9px;padding:12px;text-align:center;">
               <div style="font-size:11px;color:var(--muted);margin-bottom:5px;">🏦 口座引落</div>
-              <div id="pay-bank" style="font-size:19px;font-weight:700;font-family:'DM Mono',monospace;color:var(--gold);">¥0</div>
+              <div id="pay-bank" style="font-size:17px;font-weight:700;font-family:'DM Mono',monospace;color:var(--gold);">¥0</div>
               <div id="pay-bank-sub" style="font-size:11px;color:var(--muted);margin-top:3px;">0件</div>
             </div>
           </div>
@@ -298,7 +303,7 @@ select.si{flex:0 0 auto;font-size:12px;}
           <div class="sbar">
             <input class="si" type="text" id="search" placeholder="店名・メモで検索...">
             <select class="si" id="cat-filter"><option value="">全カテゴリ</option></select>
-            <select class="si" id="pay-filter"><option value="">全支払方法</option><option value="カード">💳 カード</option><option value="現金">💴 現金</option><option value="口座">🏦 口座引落</option></select>
+            <select class="si" id="pay-filter"><option value="">全支払方法</option><option value="楽天カード">💳 楽天カード</option><option value="その他カード">💳 その他カード</option><option value="現金">💴 現金</option><option value="口座">🏦 口座引落</option></select>
             <select class="si" id="type-filter">
               <option value="">全種別</option>
               <option value="expense">支出のみ</option>
@@ -411,7 +416,7 @@ select.si{flex:0 0 auto;font-size:12px;}
           <div class="frow" style="grid-column:1/-1;"><label>内容・店名</label><input type="text" id="m-name" placeholder="例：生協代金、給与、家賃など"></div>
           <div class="frow"><label>金額（円）</label><input type="number" id="m-amount" placeholder="例：25000" min="0"></div>
           <div class="frow"><label>カテゴリ</label><select id="m-cat"></select></div>
-          <div class="frow"><label>支払方法</label><select id="m-pay"><option value="カード">💳 カード</option><option value="現金">💴 現金</option><option value="口座">🏦 口座引落</option></select></div>
+          <div class="frow"><label>支払方法</label><select id="m-pay"><option value="楽天カード">💳 楽天カード</option><option value="その他カード">💳 その他カード</option><option value="現金">💴 現金</option><option value="口座">🏦 口座引落</option></select></div>
           <div class="frow" style="grid-column:1/-1;"><label>メモ（任意）</label><input type="text" id="m-memo" placeholder="メモ..."></div>
         </div>
         <div style="display:flex;justify-content:flex-end;margin-top:8px;gap:8px;align-items:center;">
@@ -457,7 +462,7 @@ select.si{flex:0 0 auto;font-size:12px;}
           </div>
           <div>
             <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">支払方法</div>
-            <select class="fc-inp" id="fc-pay"><option value="カード">💳 カード</option><option value="現金">💴 現金</option><option value="口座">🏦 口座引落</option></select>
+            <select class="fc-inp" id="fc-pay"><option value="楽天カード">💳 楽天カード</option><option value="その他カード">💳 その他カード</option><option value="現金">💴 現金</option><option value="口座">🏦 口座引落</option></select>
           </div>
           <button class="btn primary" style="align-self:flex-end;" onclick="addFixedCost()">追加</button>
         </div>
@@ -488,7 +493,7 @@ select.si{flex:0 0 auto;font-size:12px;}
       </select>
     </div>
     <div class="frow"><label>カテゴリ</label><select id="e-cat"></select></div>
-    <div class="frow"><label>支払方法</label><select id="e-pay"><option value="カード">💳 カード</option><option value="現金">💴 現金</option><option value="口座">🏦 口座引落</option></select></div>
+    <div class="frow"><label>支払方法</label><select id="e-pay"><option value="楽天カード">💳 楽天カード</option><option value="その他カード">💳 その他カード</option><option value="現金">💴 現金</option><option value="口座">🏦 口座引落</option></select></div>
     <div class="frow"><label>メモ</label><textarea id="e-memo" placeholder="自由にメモ..."></textarea></div>
     <div class="frow">
       <label>タグ</label>
@@ -513,14 +518,14 @@ const GAS_URL = "https://script.google.com/macros/s/AKfycbxBBjfOkLLHyZxWupillmrZ
 // ── Constants ──
 const EXP_CATS = ['食費','外食','雑費','衣料品','日用品','交通費','水道光熱費','医療・健康','娯楽・趣味','交際費','生協','保育園料','立替費','その他'];
 const INC_CATS = ['給与','児童手当','養育費','賞与','副収入','その他収入'];
-const FIX_CATS = ['家賃','生協','保険','通信費(固定)','サブスク','その他固定費'];
+const FIX_CATS = ['家賃','生協','保育園料','保険','通信費(固定)','サブスク','その他固定費'];
 const CAT_COLORS = {
   '食費':'#3ec98e','外食':'#f0834a','雑費':'#9999bb','衣料品':'#e06090',
   '日用品':'#d4a853','交通費':'#4a90d9','水道光熱費':'#ff9955','医療・健康':'#3abcbc',
   '娯楽・趣味':'#9b6dff','交際費':'#ff6b9d','生協':'#a8cc40','保育園料':'#ff88cc','立替費':'#cc8844',
   '通信費':'#5599ff','教育':'#cc77ff','その他':'#888899',
   '給与':'#3ec98e','児童手当':'#27c8a0','養育費':'#2eb88a','賞与':'#44ddaa','副収入':'#5fe0b0','その他収入':'#70eecc',
-  '家賃':'#d4a853','生協':'#c8bb40','保険':'#e0c060','通信費(固定)':'#aabb33','サブスク':'#bbcc44','その他固定費':'#998833',
+  '家賃':'#d4a853','生協':'#c8bb40','保育園料':'#ff88cc','保険':'#e0c060','通信費(固定)':'#aabb33','サブスク':'#bbcc44','その他固定費':'#998833',
 };
 const CAT_EMOJI = {
   '食費':'🛒','外食':'🍽️','雑費':'🗂️','衣料品':'👗','日用品':'🏠',
@@ -671,15 +676,17 @@ function renderStats(){
   document.getElementById('s-top').textContent=top?(CAT_EMOJI[top[0]]||'')+' '+top[0]:'-';
   document.getElementById('s-top-sub').textContent=top?fmt(top[1]):'-';
   // 支払方法別集計
-  const pays={カード:0,現金:0,口座:0};
-  const payCnt={カード:0,現金:0,口座:0};
+  const pays={'楽天カード':0,'その他カード':0,'現金':0,'口座':0};
+  const payCnt={'楽天カード':0,'その他カード':0,'現金':0,'口座':0};
   fd.filter(r=>r.type!=='income').forEach(r=>{
     const raw=r.payMethod;
-    const p=(raw&&raw!=='undefined'&&raw!=='null'&&['カード','現金','口座'].includes(raw))?raw:'カード';
+    const p=(raw&&raw!=='undefined'&&raw!=='null'&&['楽天カード','その他カード','現金','口座'].includes(raw))?raw:(raw==='カード'?'楽天カード':'楽天カード');
     if(pays[p]!==undefined){pays[p]+=r.amount;payCnt[p]++;}
   });
-  document.getElementById('pay-card').textContent=fmt(pays['カード']);
-  document.getElementById('pay-card-sub').textContent=payCnt['カード']+'件';
+  document.getElementById('pay-card').textContent=fmt(pays['楽天カード']);
+  document.getElementById('pay-card-sub').textContent=payCnt['楽天カード']+'件';
+  document.getElementById('pay-card2').textContent=fmt(pays['その他カード']);
+  document.getElementById('pay-card2-sub').textContent=payCnt['その他カード']+'件';
   document.getElementById('pay-cash').textContent=fmt(pays['現金']);
   document.getElementById('pay-cash-sub').textContent=payCnt['現金']+'件';
   document.getElementById('pay-bank').textContent=fmt(pays['口座']);
@@ -689,11 +696,11 @@ function renderStats(){
 function renderPayChart(){
   const fd=period().filter(r=>r.type!=='income');
   const months=getMonths().reverse();
-  const payByMonth={カード:{},現金:{},口座:{}};
+  const payByMonth={'楽天カード':{},'その他カード':{},'現金':{},'口座':{}};
   fd.forEach(r=>{
-    const m=r.date.substring(0,7);
+    const m=r.date.replace(/-/g,'/').substring(0,7);
     const raw=r.payMethod;
-    const p=(raw&&raw!=='undefined'&&raw!=='null'&&['カード','現金','口座'].includes(raw))?raw:'カード';
+    const p=(raw&&raw!=='undefined'&&raw!=='null'&&['楽天カード','その他カード','現金','口座'].includes(raw))?raw:(raw==='カード'?'楽天カード':'楽天カード');
     if(payByMonth[p]!==undefined) payByMonth[p][m]=(payByMonth[p][m]||0)+r.amount;
   });
   const el=document.getElementById('pay-chart');
@@ -704,7 +711,8 @@ function renderPayChart(){
     data:{
       labels:months.map(m=>{const parts=m.split('/');return`${parts[0].slice(2)}/${parts[1]}`;}),
       datasets:[
-        {label:'💳 カード',data:months.map(m=>payByMonth['カード'][m]||0),backgroundColor:'#4a90d944',borderColor:'#4a90d9',borderWidth:1,borderRadius:3,borderSkipped:false},
+        {label:'💳 楽天カード',data:months.map(m=>payByMonth['楽天カード'][m]||0),backgroundColor:'#e0555544',borderColor:'#e05555',borderWidth:1,borderRadius:3,borderSkipped:false},
+        {label:'💳 その他カード',data:months.map(m=>payByMonth['その他カード'][m]||0),backgroundColor:'#4a90d944',borderColor:'#4a90d9',borderWidth:1,borderRadius:3,borderSkipped:false},
         {label:'💴 現金',data:months.map(m=>payByMonth['現金'][m]||0),backgroundColor:'#3ec98e44',borderColor:'#3ec98e',borderWidth:1,borderRadius:3,borderSkipped:false},
         {label:'🏦 口座',data:months.map(m=>payByMonth['口座'][m]||0),backgroundColor:'#d4a85344',borderColor:'#d4a853',borderWidth:1,borderRadius:3,borderSkipped:false},
       ]
@@ -759,7 +767,7 @@ function renderTable(){
   if(q)fd=fd.filter(r=>r.name.toLowerCase().includes(q)||(r.memo||'').toLowerCase().includes(q)||(r.tags||[]).join(' ').includes(q));
   if(cf)fd=fd.filter(r=>r.cat===cf);
   if(tf)fd=fd.filter(r=>r.type===tf);
-  if(pf)fd=fd.filter(r=>(r.payMethod||'カード')===pf);
+  if(pf)fd=fd.filter(r=>(r.payMethod||'楽天カード')===pf);
   const sortOrder=document.getElementById('sort-order')?.value||'desc';
   fd=[...fd].sort((a,b)=>sortOrder==='asc'?a.date.localeCompare(b.date):b.date.localeCompare(a.date));
   const tbody=document.getElementById('tbody');
@@ -794,7 +802,7 @@ function openModal(i){
   document.getElementById('e-type').value=r.type||'expense';
   updateEditCats();
   document.getElementById('e-cat').value=r.cat;
-  document.getElementById('e-pay').value=r.payMethod||'カード';
+  document.getElementById('e-pay').value=r.payMethod||'楽天カード';
   document.getElementById('e-memo').value=r.memo||'';
   editTags=[...(r.tags||[])];renderEditTags();
   document.getElementById('edit-overlay').classList.add('open');
@@ -858,7 +866,7 @@ function applyFixedCosts(){
   fixedList.forEach(f=>{
     const dup=allData.some(r=>r.date===day1&&r.name===f.name&&r.type===f.type);
     if(dup)return;
-    allData.push({id:uid(),date:day1,name:f.name,amount:f.amount,type:f.type,cat:f.cat||guessCat(f.name,f.type),memo:'',tags:[],payMethod:f.payMethod||'カード'});
+    allData.push({id:uid(),date:day1,name:f.name,amount:f.amount,type:f.type,cat:f.cat||guessCat(f.name,f.type),memo:'',tags:[],payMethod:f.payMethod||'楽天カード'});
     added++;
   });
   save();
@@ -970,7 +978,7 @@ function parseCSV(text){
     }
     if(!date||!name||amount<=0)continue;
     const type=guessType(name);
-    rows.push({id:uid(),date,name,amount,type,cat:guessCat(name,type),memo:'',tags:[],payMethod:'カード'});
+    rows.push({id:uid(),date,name,amount,type,cat:guessCat(name,type),memo:'',tags:[],payMethod:'楽天カード'});
   }
   return rows;
 }
@@ -1105,7 +1113,7 @@ function importAI(){
     const cat=document.getElementById(`ai-cat-${i}`)?.value||item.cat;
     const date=item.date||fallbackDate;
     if(!allData.some(r=>r.date===date&&r.name===item.name&&r.amount===item.amount)){
-      allData.push({id:uid(),date,name:item.name,amount:item.amount,type:item.type,cat,memo:'',tags:[],payMethod:'カード'});added++;
+      allData.push({id:uid(),date,name:item.name,amount:item.amount,type:item.type,cat,memo:'',tags:[],payMethod:'楽天カード'});added++;
     }
   });
   save();
