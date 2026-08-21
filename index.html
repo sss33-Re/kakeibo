@@ -697,8 +697,8 @@ function refreshHome(){
   s.style.color='var(--green)';
 }
 
-function getMonths(){ return [...new Set(allData.map(r=>r.date.replace(/-/g,'/').substring(0,7)))].sort().reverse(); }
-function period(){ return activeMonth==='all'?allData:allData.filter(r=>r.date.replace(/-/g,'/').startsWith(activeMonth)); }
+function getMonths(){ return [...new Set(allData.filter(r=>r.date&&typeof r.date==='string'&&r.date.match(/\d{4}/)).map(r=>r.date.replace(/-/g,'/').substring(0,7)))].sort().reverse(); }
+function period(){ return activeMonth==='all'?allData:allData.filter(r=>r.date&&typeof r.date==='string'&&r.date.replace(/-/g,'/').startsWith(activeMonth)); }
 
 function buildPills(){
   const months=getMonths();
