@@ -297,6 +297,7 @@ select.si{flex:0 0 auto;font-size:12px;}
               <option value="desc">新しい順</option>
               <option value="asc">古い順</option>
             </select>
+            <button class="btn sm" onclick="showMultiCatModal()" style="border-color:var(--purple);color:var(--purple);">📊 複数カテゴリ合計</button>
           </div>
         </div>
         <div class="card-body">
@@ -548,11 +549,59 @@ select.si{flex:0 0 auto;font-size:12px;}
   </div>
 </div>
 
+
+
+<!-- 重複確認モーダル -->
+<div class="overlay" id="dupe-overlay">
+  <div class="modal" style="width:520px;">
+    <h3>⚠️ 重複データが見つかりました</h3>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px;">
+      新規: <span id="dupe-new-count" style="color:var(--green);font-weight:700;">0</span>件　
+      重複: <span id="dupe-dup-count" style="color:var(--gold);font-weight:700;">0</span>件
+    </p>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">重複している明細（チェックしたものも追加できます）</div>
+    <div id="dupe-list" style="max-height:200px;overflow-y:auto;margin-bottom:16px;"></div>
+    <div class="mactions" style="flex-wrap:wrap;gap:8px;">
+      <button class="btn" id="dupe-skip">新規のみ追加（重複除外）</button>
+      <button class="btn" style="border-color:var(--gold);color:var(--gold);" id="dupe-add-new">新規＋チェックした重複を追加</button>
+      <button class="btn primary" id="dupe-add-all">全部追加（重複含む）</button>
+    </div>
+  </div>
+</div>
+<!-- 複数カテゴリ合計モーダル -->
+<div class="overlay" id="multicat-overlay">
+  <div class="modal" style="width:520px;">
+    <h3>📊 複数カテゴリ合計</h3>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">集計したいカテゴリを複数選択してください</p>
+    <div id="multicat-list" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;max-height:200px;overflow-y:auto;"></div>
+    <div style="background:var(--s2);border-radius:9px;padding:14px;margin-bottom:16px;">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center;">
+        <div>
+          <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">件数</div>
+          <div id="mc-count" style="font-size:18px;font-weight:700;font-family:'DM Mono',monospace;">0件</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">支出合計</div>
+          <div id="mc-out" style="font-size:18px;font-weight:700;font-family:'DM Mono',monospace;color:var(--red2);">¥0</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">収入合計</div>
+          <div id="mc-in" style="font-size:18px;font-weight:700;font-family:'DM Mono',monospace;color:var(--green);">¥0</div>
+        </div>
+      </div>
+    </div>
+    <div class="mactions">
+      <button class="btn" onclick="document.getElementById('multicat-overlay').classList.remove('open')">閉じる</button>
+    </div>
+  </div>
+</div>
 <!-- Edit Modal -->
 <div class="overlay" id="edit-overlay">
   <div class="modal">
     <h3>✏️ 明細を編集</h3>
-    <div class="frow"><label>内容</label><input type="text" id="e-name" readonly style="opacity:.6;"></div>
+    <div class="frow"><label>日付</label><input type="date" id="e-date"></div>
+    <div class="frow"><label>内容名</label><input type="text" id="e-name"></div>
+    <div class="frow"><label>金額（円）</label><input type="number" id="e-amount" min="0"></div>
     <div class="frow">
       <label>種別</label>
       <select id="e-type" onchange="updateEditCats()">
@@ -895,7 +944,9 @@ function renderTable(){
 // ── Modal ──
 function openModal(i){
   editIdx=i;const r=allData[i];
-  document.getElementById('e-name').value=`${r.name}　${fmt(r.amount)}　${r.date}`;
+  document.getElementById('e-date').value=r.date.replace(/\//g,'-');
+  document.getElementById('e-name').value=r.name;
+  document.getElementById('e-amount').value=r.amount;
   document.getElementById('e-type').value=r.type||'expense';
   updateEditCats();
   document.getElementById('e-cat').value=r.cat;
@@ -916,6 +967,9 @@ function rmTag(i){ editTags.splice(i,1); renderEditTags(); }
 function saveModal(){
   if(editIdx===null)return;
   const r=allData[editIdx];
+  r.date=(document.getElementById('e-date').value||r.date).replace(/-/g,'/');
+  r.name=document.getElementById('e-name').value.trim()||r.name;
+  r.amount=parseInt(document.getElementById('e-amount').value)||r.amount;
   r.type=document.getElementById('e-type').value;
   r.cat=document.getElementById('e-cat').value;
   r.payMethod=document.getElementById('e-pay').value;
@@ -1062,9 +1116,49 @@ async function loadPDF(file){
   }
 }
 function mergeRows(rows,label){
-  let added=0;
-  rows.forEach(r=>{if(!allData.some(d=>d.date===r.date&&d.name===r.name&&d.amount===r.amount)){allData.push(r);added++;}});
-  save();setImportMsg(`✅ ${label}から ${added}件追加しました（重複除く）`,'var(--green)');refreshHome();
+  const dupes = rows.filter(r=>allData.some(d=>d.date===r.date&&d.amount===r.amount));
+  const newRows = rows.filter(r=>!allData.some(d=>d.date===r.date&&d.amount===r.amount));
+
+  if(dupes.length===0){
+    newRows.forEach(r=>allData.push(r));
+    save();setImportMsg(`✅ ${label}から ${newRows.length}件追加しました`,'var(--green)');refreshHome();
+    return;
+  }
+
+  // 重複がある場合は選択UIを表示
+  showDupeModal(dupes, newRows, label);
+}
+
+function showDupeModal(dupes, newRows, label){
+  const overlay = document.getElementById('dupe-overlay');
+  const list = document.getElementById('dupe-list');
+  list.innerHTML = dupes.map((r,i)=>
+    `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);">
+      <input type="checkbox" id="dupe-${i}" checked style="accent-color:var(--green);width:15px;height:15px;">
+      <span style="flex:1;font-size:12px;">${r.date} ${r.name}</span>
+      <span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--red2);">-${fmt(r.amount)}</span>
+    </div>`
+  ).join('');
+  document.getElementById('dupe-new-count').textContent = newRows.length;
+  document.getElementById('dupe-dup-count').textContent = dupes.length;
+  document.getElementById('dupe-add-all').onclick = ()=>{
+    [...newRows,...dupes].forEach(r=>allData.push(r));
+    save();overlay.classList.remove('open');
+    setImportMsg(`✅ ${label}から ${newRows.length+dupes.length}件追加しました（重複含む）`,'var(--green)');refreshHome();
+  };
+  document.getElementById('dupe-add-new').onclick = ()=>{
+    // チェックされた重複も追加
+    const checkedDupes = dupes.filter((_,i)=>document.getElementById(`dupe-${i}`)?.checked);
+    [...newRows,...checkedDupes].forEach(r=>allData.push(r));
+    save();overlay.classList.remove('open');
+    setImportMsg(`✅ ${label}から ${newRows.length+checkedDupes.length}件追加しました`,'var(--green)');refreshHome();
+  };
+  document.getElementById('dupe-skip').onclick = ()=>{
+    newRows.forEach(r=>allData.push(r));
+    save();overlay.classList.remove('open');
+    setImportMsg(`✅ ${label}から ${newRows.length}件追加しました（重複${dupes.length}件除外）`,'var(--green)');refreshHome();
+  };
+  overlay.classList.add('open');
 }
 function parseCSV(text){
   const lines=text.split(/\r?\n/).filter(l=>l.trim());
@@ -1445,11 +1539,14 @@ function saveSettings(){
 }
 
 function applySettings(){
-  // カテゴリと支払方法をユーザー設定から動的に生成
   window.EXP_CATS_USER = userSettings.expCats;
   window.INC_CATS_USER = userSettings.incCats;
   window.FIX_CATS_USER = userSettings.fixCats;
   window.PAY_METHODS_USER = userSettings.payMethods;
+  // カスタム絵文字を反映
+  if(userSettings.catEmoji){
+    Object.entries(userSettings.catEmoji).forEach(([k,v])=>{ CAT_EMOJI[k]=v; });
+  }
 }
 
 function catsFor(t){
@@ -1474,11 +1571,42 @@ function renderCatList(type, cats, elId){
   const el = document.getElementById(elId);
   if(!el) return;
   el.innerHTML = (cats||[]).map((c,i) =>
-    `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--border);">
-      <span style="flex:1;font-size:13px;">${CAT_EMOJI[c]||'📦'} ${c}</span>
-      <span onclick="removeCat('${type}',${i})" style="cursor:pointer;color:var(--muted);font-size:16px;">×</span>
+    `<div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid var(--border);">
+      <span onclick="editEmoji('${type}',${i},'${c}')" style="cursor:pointer;font-size:18px;min-width:28px;text-align:center;" title="絵文字を変更">${userSettings.catEmoji&&userSettings.catEmoji[c]||CAT_EMOJI[c]||'📦'}</span>
+      <span style="flex:1;font-size:13px;" id="catname-${type}-${i}">${c}</span>
+      <button class="btn sm" onclick="editCatName('${type}',${i},'${c}')" style="font-size:10px;padding:3px 7px;">編集</button>
+      <span onclick="removeCat('${type}',${i})" style="cursor:pointer;color:var(--muted);font-size:18px;padding:0 4px;">×</span>
     </div>`
   ).join('');
+}
+
+function editEmoji(type, idx, catName){
+  const emoji = prompt(`「${catName}」の絵文字を入力してください（1文字）`, userSettings.catEmoji&&userSettings.catEmoji[catName]||CAT_EMOJI[catName]||'📦');
+  if(emoji===null) return;
+  if(!userSettings.catEmoji) userSettings.catEmoji={};
+  userSettings.catEmoji[catName] = emoji.trim()||'📦';
+  CAT_EMOJI[catName] = userSettings.catEmoji[catName];
+  saveSettings();
+  renderSettingsPage();
+  refreshHome();
+}
+
+function editCatName(type, idx, oldName){
+  const newName = prompt(`カテゴリ名を変更してください`, oldName);
+  if(!newName||newName===oldName) return;
+  const listKey = type==='exp'?'expCats':type==='inc'?'incCats':'fixCats';
+  userSettings[listKey][idx] = newName;
+  // 既存データのcatも更新
+  allData.forEach(r=>{ if(r.cat===oldName) r.cat=newName; });
+  // 絵文字も引き継ぎ
+  if(!userSettings.catEmoji) userSettings.catEmoji={};
+  if(userSettings.catEmoji[oldName]){
+    userSettings.catEmoji[newName] = userSettings.catEmoji[oldName];
+    delete userSettings.catEmoji[oldName];
+  }
+  if(CAT_EMOJI[oldName]){ CAT_EMOJI[newName]=CAT_EMOJI[oldName]; }
+  saveSettings(); applySettings(); save();
+  renderSettingsPage(); refreshHome();
 }
 
 function renderPayMethodList(){
@@ -1593,6 +1721,40 @@ window.addEventListener('DOMContentLoaded', ()=>{
     document.getElementById('api-key-status').textContent = '✅ APIキー設定済み';
     document.getElementById('api-key-status').style.color = 'var(--green)';
   }
+});
+
+
+function showMultiCatModal(){
+  const overlay = document.getElementById('multicat-overlay');
+  const list = document.getElementById('multicat-list');
+  const fd = period();
+  // 全カテゴリ一覧
+  const allCats = [...new Set(allData.map(r=>r.cat))].sort();
+  list.innerHTML = allCats.map(c=>{
+    const col = CAT_COLORS[c]||'#888';
+    const em = userSettings.catEmoji&&userSettings.catEmoji[c]||CAT_EMOJI[c]||'📦';
+    return `<label style="display:flex;align-items:center;gap:6px;padding:5px 10px;background:var(--s2);border-radius:7px;cursor:pointer;border:1px solid var(--border);">
+      <input type="checkbox" value="${c}" onchange="calcMultiCat()" style="accent-color:var(--green);width:14px;height:14px;">
+      <span style="font-size:13px;">${em} ${c}</span>
+    </label>`;
+  }).join('');
+  calcMultiCat();
+  overlay.classList.add('open');
+}
+
+function calcMultiCat(){
+  const checked = [...document.querySelectorAll('#multicat-list input:checked')].map(el=>el.value);
+  const fd = period();
+  const filtered = fd.filter(r=>checked.includes(r.cat));
+  const out = filtered.filter(r=>r.type!=='income').reduce((s,r)=>s+r.amount,0);
+  const inc = filtered.filter(r=>r.type==='income').reduce((s,r)=>s+r.amount,0);
+  document.getElementById('mc-count').textContent = filtered.length+'件';
+  document.getElementById('mc-out').textContent = out>0?'-'+fmt(out):'¥0';
+  document.getElementById('mc-in').textContent = inc>0?'+'+fmt(inc):'¥0';
+}
+
+document.getElementById('multicat-overlay').addEventListener('click',e=>{
+  if(e.target===document.getElementById('multicat-overlay')) document.getElementById('multicat-overlay').classList.remove('open');
 });
 
 // ── Init ──
