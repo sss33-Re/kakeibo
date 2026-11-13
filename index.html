@@ -1260,7 +1260,7 @@ catのルール:
         'x-api-key':apiKey,
       },
       body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',max_tokens:1000,
+        model:'claude-sonnet-5-5',max_tokens:1000,
         messages:[{role:'user',content:[
           {type:'image',source:{type:'base64',media_type:file.type||'image/jpeg',data:b64}},
           {type:'text',text:prompt}
@@ -1421,6 +1421,15 @@ async function syncFromSheet(){
       // 固定費リストも同期
       if(data.fixedList && data.fixedList.length > 0){
         fixedList = data.fixedList;
+      }
+      // カテゴリ・支払方法・絵文字の設定も同期
+      if(data.settings && Object.keys(data.settings).length > 0){
+        userSettings = {...userSettings, ...data.settings};
+        saveSettings();
+        applySettings();
+        renderSettingsPage();
+        updatePaySelects();
+        updateFcCats();
       }
       statusEl.style.color = 'var(--green)';
       save(); refreshHome(); renderFixedList();
