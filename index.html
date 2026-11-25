@@ -172,6 +172,24 @@ select.si{flex:0 0 auto;font-size:12px;}
 ::-webkit-scrollbar{width:5px;height:5px;}
 ::-webkit-scrollbar-track{background:var(--bg);}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+
+/* ── PDF出力（A5縦）用 ── */
+.pp-page{position:relative;width:148mm;height:210mm;background:#fff;color:#222;font-family:'Noto Sans JP',sans-serif;padding:10mm;box-sizing:border-box;overflow:hidden;font-size:9pt;line-height:1.35;}
+.pp-h{display:flex;justify-content:space-between;align-items:baseline;border-bottom:0.4mm solid #333;padding-bottom:2mm;margin-bottom:3mm;}
+.pp-h b{font-size:13pt;}
+.pp-h span{font-size:7.5pt;color:#666;}
+.pp-sec{font-size:10pt;font-weight:700;margin:4mm 0 2mm;padding-left:2mm;border-left:1mm solid #bf2c2c;}
+.pp-sum{display:flex;gap:3mm;}
+.pp-sum>div{flex:1;border:0.3mm solid #ccc;border-radius:1.5mm;padding:2mm;text-align:center;}
+.pp-sum small{display:block;font-size:7.5pt;color:#666;}
+.pp-sum strong{font-size:11pt;}
+.pp-tb{width:100%;border-collapse:collapse;table-layout:fixed;}
+.pp-tb th{font-size:7.5pt;color:#666;text-align:left;font-weight:500;border-bottom:0.3mm solid #999;padding:0 1mm;height:4.5mm;}
+.pp-tb td{font-size:8.5pt;padding:0 1mm;height:5mm;border-bottom:0.2mm solid #e5e5e5;white-space:nowrap;overflow:hidden;}
+.pp-d td{height:6mm;}
+.pp-r{text-align:right !important;}
+.pp-bar{height:2.4mm;border-radius:1mm;}
+.pp-foot{position:absolute;bottom:5mm;left:0;right:0;text-align:center;font-size:7.5pt;color:#888;}
 </style>
 </head>
 <body>
@@ -298,6 +316,7 @@ select.si{flex:0 0 auto;font-size:12px;}
               <option value="asc">古い順</option>
             </select>
             <button class="btn sm" onclick="showMultiCatModal()" style="border-color:var(--purple);color:var(--purple);">📊 複数カテゴリ合計</button>
+            <button class="btn sm" onclick="openPdfModal()" style="border-color:var(--blue);color:var(--blue);">📄 PDF出力</button>
           </div>
         </div>
         <div class="card-body">
@@ -427,7 +446,15 @@ select.si{flex:0 0 auto;font-size:12px;}
       <div class="card-head"><span class="card-title">＋ 明細を手入力</span></div>
       <div class="card-body">
         <div class="manual-grid">
-          <div class="frow"><label>日付（過去日付もOK）</label><input type="date" id="m-date"></div>
+          <div class="frow">
+            <label>日付（過去日付もOK）<span id="m-date-hint" style="text-transform:none;letter-spacing:0;margin-left:6px;">Enterで 年→月→日 と進みます</span></label>
+            <div id="m-date-pc" style="display:grid;grid-template-columns:1.5fr auto 1fr auto 1fr auto;gap:6px;align-items:center;">
+              <input type="text" id="m-year" inputmode="numeric" maxlength="4" placeholder="2026" autocomplete="off" style="text-align:center;"><span>年</span>
+              <input type="text" id="m-month" inputmode="numeric" maxlength="2" placeholder="4" autocomplete="off" style="text-align:center;"><span>月</span>
+              <input type="text" id="m-day" inputmode="numeric" maxlength="2" placeholder="15" autocomplete="off" style="text-align:center;"><span>日</span>
+            </div>
+            <input type="date" id="m-date" style="display:none;">
+          </div>
           <div class="frow">
             <label>種別</label>
             <select id="m-type" onchange="updateManualCats()">
@@ -595,6 +622,23 @@ select.si{flex:0 0 auto;font-size:12px;}
     </div>
   </div>
 </div>
+<!-- PDF出力モーダル -->
+<div class="overlay" id="pdf-overlay">
+  <div class="modal" style="width:420px;">
+    <h3>📄 PDF出力（A5縦）</h3>
+    <div class="frow"><label>対象月</label><select id="pdf-month"></select></div>
+    <p style="font-size:11px;color:var(--muted);line-height:1.8;margin-bottom:8px;">
+      1ページ目：カテゴリー別支出・当月収支・支払方法別集計<br>
+      2ページ目以降：個別の明細（日付順）
+    </p>
+    <div id="pdf-msg" style="font-size:12px;color:var(--muted);min-height:18px;"></div>
+    <div class="mactions">
+      <button class="btn" onclick="closePdfModal()">閉じる</button>
+      <button class="btn primary" id="pdf-go" onclick="makePdf()">PDFを作る</button>
+    </div>
+  </div>
+</div>
+
 <!-- Edit Modal -->
 <div class="overlay" id="edit-overlay">
   <div class="modal">
@@ -656,9 +700,11 @@ const CAT_EMOJI = {
 
 // ── State ──
 let allData=[], fixedList=[], activeMonth='all', editIdx=null, editTags=[], catChart=null, monthChart=null, aiScanned=[];
+let sheetRev = (()=>{ try{ return localStorage.getItem('kb_rev')||null; }catch(e){ return null; } })();
+let autoSaveTimer=null, isSaving=false, autoSavePaused=false;
 
 // ── Storage ──
-function save(){ try{ localStorage.setItem('kb_d',JSON.stringify(allData)); localStorage.setItem('kb_f',JSON.stringify(fixedList)); }catch(e){} }
+function save(){ try{ localStorage.setItem('kb_d',JSON.stringify(allData)); localStorage.setItem('kb_f',JSON.stringify(fixedList)); }catch(e){} scheduleAutoSave(); }
 function loadStore(){ try{ const d=localStorage.getItem('kb_d'),f=localStorage.getItem('kb_f'); if(d)allData=JSON.parse(d); if(f)fixedList=JSON.parse(f); }catch(e){} }
 
 // ── Utils ──
@@ -750,10 +796,21 @@ function getMonths(){ return [...new Set(allData.filter(r=>r.date&&typeof r.date
 function period(){ return activeMonth==='all'?allData:allData.filter(r=>r.date&&typeof r.date==='string'&&r.date.replace(/-/g,'/').startsWith(activeMonth)); }
 
 function buildPills(){
-  const months=getMonths();
+  const months=getMonths();                 // 新しい順
+  const cutoff=monthKeyNow(-5);             // 当月を含む直近6ヶ月の開始月
+  const nowKey=monthKeyNow(0);
+  const recent=[...new Set([...months.filter(m=>m>=cutoff), nowKey])].sort().reverse();
+  const older=months.filter(m=>m<cutoff);
   const c=document.getElementById('month-pills');
-  c.innerHTML=`<button class="mbtn ${activeMonth==='all'?'active':''}" onclick="setMonth('all',this)">全期間</button>`;
-  months.forEach(m=>{const[y,mo]=m.split('/');c.innerHTML+=`<button class="mbtn ${activeMonth===m?'active':''}" onclick="setMonth('${m}',this)">${y.slice(2)}/${mo}</button>`;});
+  let h=`<button class="mbtn ${activeMonth==='all'?'active':''}" onclick="setMonth('all',this)">全期間</button>`;
+  recent.forEach(m=>{ const p=m.split('/'); h+=`<button class="mbtn ${activeMonth===m?'active':''}" onclick="setMonth('${m}',this)">${p[0].slice(2)}/${p[1]}</button>`; });
+  if(older.length){
+    const on=older.includes(activeMonth);
+    h+=`<select id="old-month-select" onchange="setMonthFromSelect(this)" style="font-family:inherit;font-size:11px;padding:4px 10px;border-radius:16px;outline:none;border:1px solid ${on?'var(--red)':'var(--border)'};background:${on?'var(--red)':'var(--s2)'};color:${on?'#fff':'var(--muted)'};"><option value="">それ以前</option>`
+      + older.map(m=>{ const p=m.split('/'); return `<option value="${m}" ${m===activeMonth?'selected':''}>${p[0]}年${parseInt(p[1],10)}月</option>`; }).join('')
+      + `</select>`;
+  }
+  c.innerHTML=h;
   const sel=document.getElementById('cat-filter');
   const prev=sel.value;
   sel.innerHTML='<option value="">全カテゴリ</option>'+[...new Set(allData.map(r=>r.cat))].sort().map(c=>`<option value="${c}">${CAT_EMOJI[c]||''} ${c}</option>`).join('');
@@ -768,6 +825,15 @@ function setMonth(m,btn){
   activeMonth=m;
   document.querySelectorAll('.mbtn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
+  const os=document.getElementById('old-month-select');
+  if(os){ os.value=''; os.style.background='var(--s2)'; os.style.color='var(--muted)'; os.style.borderColor='var(--border)'; }
+  renderStats(); renderCatChart(); renderMonthChart(); renderPayChart(); renderTable();
+}
+function setMonthFromSelect(sel){
+  if(!sel.value) return;
+  activeMonth=sel.value;
+  document.querySelectorAll('.mbtn').forEach(b=>b.classList.remove('active'));
+  sel.style.background='var(--red)'; sel.style.borderColor='var(--red)'; sel.style.color='#fff';
   renderStats(); renderCatChart(); renderMonthChart(); renderPayChart(); renderTable();
 }
 
@@ -1038,7 +1104,7 @@ function updateManualCats(){
   document.getElementById('m-cat').innerHTML=catsFor(t).map(c=>`<option value="${c}">${c}</option>`).join('');
 }
 function addManual(){
-  const date=document.getElementById('m-date').value.replace(/-/g,'/');
+  const date=getManualDate();
   const type=document.getElementById('m-type').value;
   const name=document.getElementById('m-name').value.trim();
   const amount=parseInt(document.getElementById('m-amount').value)||0;
@@ -1052,7 +1118,8 @@ function addManual(){
   document.getElementById('m-name').value='';
   document.getElementById('m-amount').value='';
   document.getElementById('m-memo').value='';
-  document.getElementById('m-date').value='';
+  clearManualDate();
+  focusManualStart();
   const msg=document.getElementById('add-msg');
   msg.textContent=`✅ ${name} ${type==='income'?'+':'-'}${fmt(amount)} を追加しました`;
   msg.style.color='var(--green)';msg.style.display='block';
@@ -1359,31 +1426,66 @@ function loadDemo(){
 
 
 // ── Google Sheets 同期 ──
-async function syncToSheet(){
-  if(!allData.length && !fixedList.length){ alert('データがありません'); return; }
+function cancelAutoSave(){ if(autoSaveTimer){ clearTimeout(autoSaveTimer); autoSaveTimer=null; } }
+function scheduleAutoSave(){
+  cancelAutoSave();
+  // まだ同期していない端末・他端末と競合中の端末では自動保存しない（上書き事故防止）
+  if(autoSavePaused || !sheetRev) return;
+  autoSaveTimer = setTimeout(()=>syncToSheet(true), 8000);
+}
+
+async function syncToSheet(silent=false, force=false){
+  if(isSaving){ if(silent) scheduleAutoSave(); return; }
+  if(silent ? !allData.length : (!allData.length && !fixedList.length)){
+    if(!silent) alert('データがありません');
+    return;
+  }
   const statusEl = document.getElementById('status');
   const orig = statusEl.textContent;
-  statusEl.textContent = '☁️ 保存中...';
+  isSaving = true;
+  statusEl.textContent = silent ? '☁️ 自動保存中...' : '☁️ 保存中...';
   statusEl.style.color = 'var(--gold)';
   try {
+    const controller = new AbortController();
+    const timer = setTimeout(()=>controller.abort(), 90000);
     const res = await fetch(GAS_URL, {
       method: 'POST',
       headers: {'Content-Type': 'text/plain'},
-      body: JSON.stringify({action:'save', allData, fixedList, settings: userSettings})
+      body: JSON.stringify({action:'save', allData, fixedList, settings:userSettings, baseRev: force ? null : sheetRev}),
+      signal: controller.signal
     });
+    clearTimeout(timer);
     const data = await res.json();
+
+    if(data.conflict){
+      // 他の端末が先に更新している
+      autoSavePaused = true;
+      statusEl.textContent = '⚠️ 他の端末で更新あり → 🔄同期してください';
+      statusEl.style.color = 'var(--gold)';
+      if(!silent){
+        const ok = confirm('他の端末で先に更新されています。\n\n【OK】このまま上書き保存（他の端末の変更が消えます）\n【キャンセル】やめる（先に🔄同期してください）');
+        if(ok){ isSaving=false; return await syncToSheet(false, true); }
+      }
+      return;
+    }
     if(data.ok){
-      statusEl.textContent = `✅ ${data.count}件保存済`;
+      if(data.rev){ sheetRev = String(data.rev); try{ localStorage.setItem('kb_rev', sheetRev); }catch(e){} }
+      autoSavePaused = false;
+      statusEl.textContent = silent ? '✅ 自動保存済' : `✅ ${data.count}件保存済`;
       statusEl.style.color = 'var(--green)';
       setTimeout(()=>{ statusEl.textContent=`${allData.length}件`; statusEl.style.color='var(--green)'; }, 3000);
     } else {
       throw new Error(data.error||'error');
     }
   } catch(err) {
-    statusEl.textContent = '❌ 保存失敗';
+    // 通信が切れても、サーバー側では保存済みの場合がある → 念のため同期を促して自動保存を止める
+    autoSavePaused = true;
+    statusEl.textContent = '❌ 保存失敗（🔄同期してから再保存）';
     statusEl.style.color = 'var(--red2)';
-    setTimeout(()=>{ statusEl.textContent=orig; statusEl.style.color='var(--muted)'; }, 3000);
+    setTimeout(()=>{ statusEl.textContent=orig; statusEl.style.color='var(--muted)'; }, 4000);
     console.error(err);
+  } finally {
+    isSaving = false;
   }
 }
 
@@ -1433,6 +1535,9 @@ async function syncFromSheet(){
       }
       statusEl.style.color = 'var(--green)';
       save(); refreshHome(); renderFixedList();
+      if(data.rev){ sheetRev = String(data.rev); try{ localStorage.setItem('kb_rev', sheetRev); }catch(e){} }
+      autoSavePaused = false;
+      cancelAutoSave();
       setTimeout(()=>{ statusEl.textContent=`${allData.length}件`; statusEl.style.color='var(--green)'; }, 3000);
     } else {
       throw new Error(data.error||'error');
@@ -1545,6 +1650,7 @@ function loadSettings(){
 
 function saveSettings(){
   try{ localStorage.setItem('kb_settings', JSON.stringify(userSettings)); }catch(e){}
+  scheduleAutoSave();
 }
 
 function applySettings(){
@@ -1765,6 +1871,237 @@ function calcMultiCat(){
 document.getElementById('multicat-overlay').addEventListener('click',e=>{
   if(e.target===document.getElementById('multicat-overlay')) document.getElementById('multicat-overlay').classList.remove('open');
 });
+
+
+// ══ 手入力：Enterで次の入力へ ══
+const IS_TOUCH = (typeof matchMedia==='function') && matchMedia('(pointer: coarse)').matches;
+const toHalfDigits = s => String(s||'').replace(/[０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).replace(/[^0-9]/g,'');
+let M_ORDER = [];
+
+function getManualDate(){
+  if(IS_TOUCH){
+    const v=document.getElementById('m-date').value;
+    return v ? v.replace(/-/g,'/') : '';
+  }
+  const y=parseInt(toHalfDigits(document.getElementById('m-year').value),10);
+  const m=parseInt(toHalfDigits(document.getElementById('m-month').value),10);
+  const d=parseInt(toHalfDigits(document.getElementById('m-day').value),10);
+  if(!y||!m||!d||y<1900||y>2100||m<1||m>12||d<1||d>31) return '';
+  const dt=new Date(y,m-1,d);
+  if(dt.getFullYear()!==y||dt.getMonth()!==m-1||dt.getDate()!==d) return '';   // 2/30 などを除外
+  return `${y}/${String(m).padStart(2,'0')}/${String(d).padStart(2,'0')}`;
+}
+function clearManualDate(){
+  ['m-year','m-month','m-day','m-date'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+}
+function focusManualStart(){
+  if(IS_TOUCH) return;
+  const y=document.getElementById('m-year'); if(y) y.focus();
+}
+function manualKeydown(e){
+  if(e.key!=='Enter' || e.isComposing || e.keyCode===229) return;   // 日本語変換の確定Enterは除外
+  e.preventDefault();
+  if(e.ctrlKey||e.metaKey){ addManual(); return; }                  // Ctrl+Enter でどこからでも追加
+  const i=M_ORDER.indexOf(e.target.id);
+  if(i<0) return;
+  if(i===M_ORDER.length-1){ addManual(); return; }                  // 最後（メモ）で追加
+  const next=document.getElementById(M_ORDER[i+1]);
+  if(next){ next.focus(); if(typeof next.select==='function' && next.tagName==='INPUT') next.select(); }
+}
+function initManualEntryKeys(){
+  const rest=['m-type','m-name','m-amount','m-cat','m-pay','m-memo'];
+  M_ORDER = IS_TOUCH ? ['m-date', ...rest] : ['m-year','m-month','m-day', ...rest];
+  if(IS_TOUCH){
+    const pc=document.getElementById('m-date-pc'), nat=document.getElementById('m-date'), hint=document.getElementById('m-date-hint');
+    if(pc) pc.style.display='none';
+    if(nat) nat.style.display='block';
+    if(hint) hint.style.display='none';
+  }
+  M_ORDER.forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener('keydown',manualKeydown); });
+}
+initManualEntryKeys();
+
+// ══ 月ユーティリティ ══
+function monthKeyNow(offset){
+  const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()+(offset||0));
+  return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+// ══ PDF出力（A5縦） ══
+const PP_ROWS = 26;     // 2ページ目以降の1ページあたり明細数
+let lastPdf = null;
+const _scriptPromises = {};
+function loadScriptOnce(url){
+  if(_scriptPromises[url]) return _scriptPromises[url];
+  _scriptPromises[url] = new Promise((resolve,reject)=>{
+    const s=document.createElement('script'); s.src=url;
+    s.onload=()=>resolve();
+    s.onerror=()=>{ delete _scriptPromises[url]; reject(new Error('ライブラリを読み込めませんでした（通信を確認してください）')); };
+    document.head.appendChild(s);
+  });
+  return _scriptPromises[url];
+}
+const ppEsc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ppFmt = n => '¥'+Math.abs(n).toLocaleString('ja-JP');
+const payLabel = p => p==='口座' ? '口座引落' : p;
+function ppTrunc(s,max){            // 全角=2・半角=1 で数えて切り詰める
+  s=String(s==null?'':s); let w=0,out='';
+  for(const ch of s){
+    const c=ch.charCodeAt(0);
+    const cw=(c>255 && !(c>=0xFF61&&c<=0xFF9F)) ? 2 : 1;
+    if(w+cw>max) return out+'…';
+    w+=cw; out+=ch;
+  }
+  return out;
+}
+function ppPay(r){
+  const raw=r.payMethod;
+  return (raw&&raw!=='undefined'&&raw!=='null') ? (raw==='カード'?'楽天カード':raw) : '楽天カード';
+}
+function pdfAggregate(month){
+  const norm=d=>String(d||'').replace(/-/g,'/');
+  const rows=allData.filter(r=>r.date && norm(r.date).startsWith(month));
+  const isInc=r=>r.type==='income';
+  const income=rows.filter(isInc).reduce((s,r)=>s+r.amount,0);
+  const outRows=rows.filter(r=>!isInc(r));
+  const expense=outRows.reduce((s,r)=>s+r.amount,0);
+  const byCat={}; outRows.forEach(r=>{ byCat[r.cat]=(byCat[r.cat]||0)+r.amount; });
+  const cats=Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
+  const order=[...(userSettings.payMethods||[])];
+  const byPay={}, cntPay={};
+  outRows.forEach(r=>{ const p=ppPay(r); byPay[p]=(byPay[p]||0)+r.amount; cntPay[p]=(cntPay[p]||0)+1; if(!order.includes(p)) order.push(p); });
+  const pays=order.map(p=>[p,byPay[p]||0,cntPay[p]||0]);
+  const detail=[...rows].sort((a,b)=>norm(a.date).localeCompare(norm(b.date)));
+  return {rows,income,expense,balance:income-expense,cats,pays,detail};
+}
+function ppTitle(month){ const p=month.split('/'); return `${p[0]}年${parseInt(p[1],10)}月`; }
+
+function ppPage1(month,agg,total){
+  const now=new Date();
+  const created=`${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}`;
+  let cats=agg.cats.slice();
+  if(cats.length>15){ const rest=cats.slice(14); cats=cats.slice(0,14); cats.push([`その他${rest.length}種`, rest.reduce((s,x)=>s+x[1],0)]); }
+  const maxCat=cats.length?Math.max(...cats.map(x=>x[1])):0;
+  const catRows=cats.length ? cats.map(([c,v])=>{
+    const col=CAT_COLORS[c]||'#888';
+    const em=(userSettings.catEmoji&&userSettings.catEmoji[c])||CAT_EMOJI[c]||'';
+    const pct=agg.expense>0?Math.round(v/agg.expense*100):0;
+    const w=maxCat>0?Math.max(2,Math.round(v/maxCat*100)):0;
+    return `<tr><td>${ppEsc(em)} ${ppEsc(ppTrunc(c,18))}</td><td><div class="pp-bar" style="width:${w}%;background:${col};"></div></td><td class="pp-r">${ppFmt(v)}</td><td class="pp-r" style="color:#777;">${pct}%</td></tr>`;
+  }).join('') : '<tr><td colspan="4" style="color:#999;">支出はありません</td></tr>';
+  const payRows=agg.pays.map(([pm,v,n])=>{
+    const pct=agg.expense>0?Math.round(v/agg.expense*100):0;
+    return `<tr><td>${ppEsc(payLabel(pm))}</td><td class="pp-r">${n}件</td><td class="pp-r">${ppFmt(v)}</td><td class="pp-r" style="color:#777;">${pct}%</td></tr>`;
+  }).join('');
+  const bal=agg.balance, gc='#1a8f5c', rc='#c0392b';
+  return `<div class="pp-h"><b>家計簿　${ppTitle(month)}</b><span>作成日 ${created}</span></div>
+<div class="pp-sec">カテゴリー別支出</div>
+<table class="pp-tb"><colgroup><col style="width:44mm"><col style="width:34mm"><col style="width:30mm"><col style="width:20mm"></colgroup>
+<thead><tr><th>カテゴリ</th><th></th><th class="pp-r">金額</th><th class="pp-r">割合</th></tr></thead><tbody>${catRows}</tbody></table>
+<div class="pp-sec">当月収支</div>
+<div class="pp-sum">
+<div><small>収入</small><strong style="color:${gc};">+${ppFmt(agg.income)}</strong></div>
+<div><small>支出</small><strong style="color:${rc};">-${ppFmt(agg.expense)}</strong></div>
+<div><small>収支</small><strong style="color:${bal>=0?gc:rc};">${bal>=0?'+':'-'}${ppFmt(bal)}</strong></div>
+</div>
+<div class="pp-sec">支払方法別集計</div>
+<table class="pp-tb"><colgroup><col style="width:44mm"><col style="width:20mm"><col style="width:44mm"><col style="width:20mm"></colgroup>
+<thead><tr><th>支払方法</th><th class="pp-r">件数</th><th class="pp-r">金額</th><th class="pp-r">割合</th></tr></thead><tbody>${payRows}</tbody></table>
+<div class="pp-foot">1 / ${total}</div>`;
+}
+function ppDetailPage(month,rows,pageNo,total){
+  const body=rows.map(r=>{
+    const inc=r.type==='income';
+    const d=String(r.date).replace(/-/g,'/').split('/');
+    return `<tr><td>${ppEsc(d[1]||'')}/${ppEsc(d[2]||'')}</td><td>${ppEsc(ppTrunc(r.name,26))}</td><td>${ppEsc(ppTrunc(r.cat,14))}</td><td>${ppEsc(payLabel(ppPay(r)))}</td><td class="pp-r" style="color:${inc?'#1a8f5c':'#c0392b'};">${inc?'+':'-'}${ppFmt(r.amount)}</td></tr>`;
+  }).join('');
+  return `<div class="pp-h"><b>${ppTitle(month)}　明細</b><span>家計簿</span></div>
+<table class="pp-tb pp-d"><colgroup><col style="width:13mm"><col style="width:44mm"><col style="width:26mm"><col style="width:22mm"><col style="width:23mm"></colgroup>
+<thead><tr><th>日付</th><th>内容</th><th>カテゴリ</th><th>支払</th><th class="pp-r">金額</th></tr></thead><tbody>${body}</tbody></table>
+<div class="pp-foot">${pageNo} / ${total}</div>`;
+}
+
+function openPdfModal(){
+  const months=getMonths();
+  if(!months.length){ alert('データがありません'); return; }
+  const nowKey=monthKeyNow(0);
+  const def=(activeMonth!=='all'&&months.includes(activeMonth)) ? activeMonth : (months.includes(nowKey)?nowKey:months[0]);
+  document.getElementById('pdf-month').innerHTML=months.map(m=>`<option value="${m}" ${m===def?'selected':''}>${ppTitle(m)}</option>`).join('');
+  const btn=document.getElementById('pdf-go');
+  btn.textContent='PDFを作る'; btn.onclick=makePdf; btn.disabled=false;
+  document.getElementById('pdf-msg').textContent='';
+  lastPdf=null;
+  document.getElementById('pdf-overlay').classList.add('open');
+}
+function closePdfModal(){ document.getElementById('pdf-overlay').classList.remove('open'); }
+document.getElementById('pdf-overlay').addEventListener('click',e=>{ if(e.target===document.getElementById('pdf-overlay')) closePdfModal(); });
+
+async function deliverPdf(){
+  if(!lastPdf) return;
+  const {blob,fname}=lastPdf;
+  const file=new File([blob],fname,{type:'application/pdf'});
+  if(IS_TOUCH && navigator.canShare && navigator.canShare({files:[file]})){
+    try{ await navigator.share({files:[file],title:fname}); return; }
+    catch(e){ if(e&&e.name==='AbortError') return; }
+  }
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=fname;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
+}
+
+async function makePdf(){
+  const month=document.getElementById('pdf-month').value;
+  const msg=document.getElementById('pdf-msg');
+  const btn=document.getElementById('pdf-go');
+  const agg=pdfAggregate(month);
+  if(!agg.rows.length){ msg.textContent='この月のデータがありません'; return; }
+  btn.disabled=true; lastPdf=null;
+  msg.textContent='PDFを作成中...（初回はライブラリの読み込みで少し時間がかかります）';
+  let wrap=null;
+  try{
+    await Promise.all([
+      loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'),
+      loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'),
+    ]);
+    if(document.fonts&&document.fonts.ready) await document.fonts.ready;
+    const detailPages=[];
+    for(let i=0;i<agg.detail.length;i+=PP_ROWS) detailPages.push(agg.detail.slice(i,i+PP_ROWS));
+    const total=1+detailPages.length;
+    const htmls=[ppPage1(month,agg,total), ...detailPages.map((rows,i)=>ppDetailPage(month,rows,i+2,total))];
+    wrap=document.createElement('div'); wrap.id='pp-wrap'; wrap.style.cssText='position:absolute;left:-10000px;top:0;';
+    htmls.forEach(h=>{ const d=document.createElement('div'); d.className='pp-page'; d.innerHTML=h; wrap.appendChild(d); });
+    document.body.appendChild(wrap);
+    const {jsPDF}=window.jspdf;
+    const pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a5'});
+    const els=[...wrap.children];
+    for(let i=0;i<els.length;i++){
+      msg.textContent=`PDFを作成中... (${i+1}/${els.length}ページ)`;
+      const canvas=await html2canvas(els[i],{
+        scale:3, backgroundColor:'#ffffff', useCORS:true, logging:false, windowWidth:800, windowHeight:1200,
+        onclone:(doc)=>{ const w=doc.getElementById('pp-wrap'); if(w){ w.style.left='0px'; w.style.top='0px'; } }
+      });
+      if(i>0) pdf.addPage('a5','portrait');
+      pdf.addImage(canvas.toDataURL('image/jpeg',0.92),'JPEG',0,0,148,210);
+    }
+    lastPdf={blob:pdf.output('blob'), fname:`家計簿_${month.replace('/','-')}.pdf`};
+    if(IS_TOUCH){
+      btn.textContent='📤 保存・共有'; btn.onclick=deliverPdf; btn.disabled=false;
+      msg.textContent=`✅ ${els.length}ページ作成しました。「保存・共有」を押してください`;
+    } else {
+      await deliverPdf();
+      btn.disabled=false;
+      msg.textContent=`✅ ${els.length}ページのPDFを保存しました`;
+    }
+  }catch(err){
+    console.error(err);
+    msg.textContent='❌ PDFの作成に失敗しました：'+(err&&err.message?err.message:err);
+    btn.disabled=false;
+  }finally{
+    if(wrap&&wrap.parentNode) wrap.parentNode.removeChild(wrap);
+  }
+}
+// ══ 追加機能 ここまで ══
 
 // ── Init ──
 loadStore();
