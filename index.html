@@ -190,6 +190,18 @@ select.si{flex:0 0 auto;font-size:12px;}
 .pp-r{text-align:right !important;}
 .pp-bar{height:2.4mm;border-radius:1mm;}
 .pp-foot{position:absolute;bottom:5mm;left:0;right:0;text-align:center;font-size:7.5pt;color:#888;}
+.pp-pie{display:flex;align-items:center;gap:4mm;}
+.pp-donut{position:relative;width:52mm;height:52mm;flex:none;}
+.pp-donut svg{display:block;width:52mm;height:52mm;}
+.pp-c{position:absolute;left:0;top:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;}
+.pp-c small{font-size:7pt;color:#666;}
+.pp-c strong{font-size:10pt;}
+.pp-leg{width:72mm;flex:none;}
+.pp-dot{display:inline-block;width:2.4mm;height:2.4mm;border-radius:50%;margin-right:1.5mm;vertical-align:middle;}
+.pp-gh td{background:#f1f1f1;font-weight:700;}
+.pp-gt td{font-weight:700;border-top:0.4mm solid #333;border-bottom:none;}
+.pp-big td{height:7mm;font-weight:700;font-size:9pt;}
+.pp-empty{color:#999;padding:6mm 0;font-size:9pt;}
 </style>
 </head>
 <body>
@@ -628,8 +640,9 @@ select.si{flex:0 0 auto;font-size:12px;}
     <h3>📄 PDF出力（A5縦）</h3>
     <div class="frow"><label>対象月</label><select id="pdf-month"></select></div>
     <p style="font-size:11px;color:var(--muted);line-height:1.8;margin-bottom:8px;">
-      1ページ目：カテゴリー別支出・当月収支・支払方法別集計<br>
-      2ページ目以降：個別の明細（日付順）
+      1ページ目：カテゴリー別支出（円グラフ）・当月と今期の収支・支払方法別集計<br>
+      2ページ目：収入の明細<br>
+      3ページ目以降：支出の明細（カテゴリー別・金額の大きい順）
     </p>
     <div id="pdf-msg" style="font-size:12px;color:var(--muted);min-height:18px;"></div>
     <div class="mactions">
@@ -1958,67 +1971,147 @@ function ppPay(r){
   const raw=r.payMethod;
   return (raw&&raw!=='undefined'&&raw!=='null') ? (raw==='カード'?'楽天カード':raw) : '楽天カード';
 }
+const ppNorm = d => String(d||'').replace(/-/g,'/');
+const ppSum = rs => rs.reduce((s,r)=>s+r.amount,0);
+const PP_PALETTE = ['#3ec98e','#f0834a','#4a90d9','#d4a853','#e06090','#3abcbc','#9b6dff','#ff9955','#a8cc40','#5599ff','#cc77ff','#ff88cc','#cc8844','#70c0a0'];
+
+// カテゴリごとにグループ化（合計の大きい順／各グループ内は金額の大きい順）
+function ppGroup(rows){
+  const m={};
+  rows.forEach(r=>{ const k=r.cat||'その他'; (m[k]=m[k]||[]).push(r); });
+  return Object.entries(m).map(([cat,rs])=>({
+    cat, total:ppSum(rs),
+    rows:[...rs].sort((a,b)=>(b.amount-a.amount)||ppNorm(a.date).localeCompare(ppNorm(b.date)))
+  })).sort((a,b)=>b.total-a.total);
+}
+// 円グラフが見分けやすいよう、同じ色が重なったら別の色に振り替える
+function ppColorMap(names){
+  const used=new Set(), map={}; let pi=0;
+  names.forEach(c=>{
+    let col=CAT_COLORS[c];
+    if(!col || used.has(col)){
+      while(pi<PP_PALETTE.length && used.has(PP_PALETTE[pi])) pi++;
+      col=PP_PALETTE[pi%PP_PALETTE.length]; pi++;
+    }
+    used.add(col); map[c]=col;
+  });
+  return map;
+}
 function pdfAggregate(month){
-  const norm=d=>String(d||'').replace(/-/g,'/');
-  const rows=allData.filter(r=>r.date && norm(r.date).startsWith(month));
+  const rows=allData.filter(r=>r.date && ppNorm(r.date).startsWith(month));
   const isInc=r=>r.type==='income';
-  const income=rows.filter(isInc).reduce((s,r)=>s+r.amount,0);
-  const outRows=rows.filter(r=>!isInc(r));
-  const expense=outRows.reduce((s,r)=>s+r.amount,0);
-  const byCat={}; outRows.forEach(r=>{ byCat[r.cat]=(byCat[r.cat]||0)+r.amount; });
-  const cats=Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
+  const incRows=rows.filter(isInc), outRows=rows.filter(r=>!isInc(r));
+  const income=ppSum(incRows), expense=ppSum(outRows);
+  const incGroups=ppGroup(incRows), expGroups=ppGroup(outRows);
+  const cats=expGroups.map(g=>[g.cat,g.total]);
   const order=[...(userSettings.payMethods||[])];
   const byPay={}, cntPay={};
   outRows.forEach(r=>{ const p=ppPay(r); byPay[p]=(byPay[p]||0)+r.amount; cntPay[p]=(cntPay[p]||0)+1; if(!order.includes(p)) order.push(p); });
   const pays=order.map(p=>[p,byPay[p]||0,cntPay[p]||0]);
-  const detail=[...rows].sort((a,b)=>norm(a.date).localeCompare(norm(b.date)));
-  return {rows,income,expense,balance:income-expense,cats,pays,detail};
+  // 今期＝その年の1月〜12月
+  const yr=month.slice(0,4);
+  const yRows=allData.filter(r=>r.date && ppNorm(r.date).startsWith(yr+'/'));
+  const yIncome=ppSum(yRows.filter(isInc)), yExpense=ppSum(yRows.filter(r=>!isInc(r)));
+  return {rows,income,expense,balance:income-expense,cats,pays,yr,yIncome,yExpense,
+    incGroups,expGroups,incCount:incRows.length,expCount:outRows.length,
+    colors:ppColorMap(expGroups.map(g=>g.cat)), incColors:ppColorMap(incGroups.map(g=>g.cat))};
 }
 function ppTitle(month){ const p=month.split('/'); return `${p[0]}年${parseInt(p[1],10)}月`; }
+
+function ppDonutSvg(cats,total,colors){
+  const R=38, C=2*Math.PI*R; let off=0;
+  const segs=cats.map(([c,v],i)=>{
+    const len=total>0 ? v/total*C : 0;
+    const draw=Math.max(len-0.5,0);
+    const s=draw>0.1 ? `<circle cx="50" cy="50" r="${R}" fill="none" stroke="${colors[i]}" stroke-width="20" stroke-dasharray="${draw.toFixed(3)} ${(C-draw).toFixed(3)}" stroke-dashoffset="${(-off).toFixed(3)}" transform="rotate(-90 50 50)"/>` : '';
+    off+=len; return s;
+  }).join('');
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="196" height="196"><circle cx="50" cy="50" r="${R}" fill="none" stroke="#eeeeee" stroke-width="20"/>${segs}</svg>`;
+}
 
 function ppPage1(month,agg,total){
   const now=new Date();
   const created=`${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}`;
-  let cats=agg.cats.slice();
-  if(cats.length>15){ const rest=cats.slice(14); cats=cats.slice(0,14); cats.push([`その他${rest.length}種`, rest.reduce((s,x)=>s+x[1],0)]); }
-  const maxCat=cats.length?Math.max(...cats.map(x=>x[1])):0;
-  const catRows=cats.length ? cats.map(([c,v])=>{
-    const col=CAT_COLORS[c]||'#888';
-    const em=(userSettings.catEmoji&&userSettings.catEmoji[c])||CAT_EMOJI[c]||'';
+  let cats=agg.cats.slice(), merged=false;
+  if(cats.length>15){ const rest=cats.slice(14); cats=cats.slice(0,14); cats.push([`その他${rest.length}種`, rest.reduce((s,x)=>s+x[1],0)]); merged=true; }
+  const colors=cats.map(([c],i)=>(merged&&i===cats.length-1)?'#9aa0a6':(agg.colors[c]||'#999'));
+  const legend=cats.length ? cats.map(([c,v],i)=>{
     const pct=agg.expense>0?Math.round(v/agg.expense*100):0;
-    const w=maxCat>0?Math.max(2,Math.round(v/maxCat*100)):0;
-    return `<tr><td>${ppEsc(em)} ${ppEsc(ppTrunc(c,18))}</td><td><div class="pp-bar" style="width:${w}%;background:${col};"></div></td><td class="pp-r">${ppFmt(v)}</td><td class="pp-r" style="color:#777;">${pct}%</td></tr>`;
-  }).join('') : '<tr><td colspan="4" style="color:#999;">支出はありません</td></tr>';
+    return `<tr><td><span class="pp-dot" style="background:${colors[i]};"></span>${ppEsc(ppTrunc(c,18))}</td><td class="pp-r">${ppFmt(v)}</td><td class="pp-r" style="color:#777;">${pct}%</td></tr>`;
+  }).join('') : '<tr><td colspan="3" style="color:#999;">支出はありません</td></tr>';
   const payRows=agg.pays.map(([pm,v,n])=>{
     const pct=agg.expense>0?Math.round(v/agg.expense*100):0;
     return `<tr><td>${ppEsc(payLabel(pm))}</td><td class="pp-r">${n}件</td><td class="pp-r">${ppFmt(v)}</td><td class="pp-r" style="color:#777;">${pct}%</td></tr>`;
   }).join('');
-  const bal=agg.balance, gc='#1a8f5c', rc='#c0392b';
+  const gc='#1a8f5c', rc='#c0392b';
+  const bal=agg.balance, yBal=agg.yIncome-agg.yExpense;
+  const bs=v=>`<td class="pp-r" style="color:${v>=0?gc:rc};">${v>=0?'+':'-'}${ppFmt(v)}</td>`;
+  const mNo=parseInt(month.split('/')[1],10);
   return `<div class="pp-h"><b>家計簿　${ppTitle(month)}</b><span>作成日 ${created}</span></div>
 <div class="pp-sec">カテゴリー別支出</div>
-<table class="pp-tb"><colgroup><col style="width:44mm"><col style="width:34mm"><col style="width:30mm"><col style="width:20mm"></colgroup>
-<thead><tr><th>カテゴリ</th><th></th><th class="pp-r">金額</th><th class="pp-r">割合</th></tr></thead><tbody>${catRows}</tbody></table>
-<div class="pp-sec">当月収支</div>
-<div class="pp-sum">
-<div><small>収入</small><strong style="color:${gc};">+${ppFmt(agg.income)}</strong></div>
-<div><small>支出</small><strong style="color:${rc};">-${ppFmt(agg.expense)}</strong></div>
-<div><small>収支</small><strong style="color:${bal>=0?gc:rc};">${bal>=0?'+':'-'}${ppFmt(bal)}</strong></div>
+<div class="pp-pie">
+<div class="pp-donut">${ppDonutSvg(cats,agg.expense,colors)}<div class="pp-c"><small>支出合計</small><strong>${ppFmt(agg.expense)}</strong></div></div>
+<table class="pp-tb pp-leg"><colgroup><col style="width:35mm"><col style="width:24mm"><col style="width:13mm"></colgroup><tbody>${legend}</tbody></table>
 </div>
+<div class="pp-sec">収支（当月・今期）</div>
+<table class="pp-tb"><colgroup><col style="width:38mm"><col style="width:30mm"><col style="width:30mm"><col style="width:30mm"></colgroup>
+<thead><tr><th>期間</th><th class="pp-r">収入</th><th class="pp-r">支出</th><th class="pp-r">収支</th></tr></thead>
+<tbody>
+<tr class="pp-big"><td>当月（${mNo}月）</td><td class="pp-r" style="color:${gc};">+${ppFmt(agg.income)}</td><td class="pp-r" style="color:${rc};">-${ppFmt(agg.expense)}</td>${bs(bal)}</tr>
+<tr class="pp-big"><td>今期（1〜12月）</td><td class="pp-r" style="color:${gc};">+${ppFmt(agg.yIncome)}</td><td class="pp-r" style="color:${rc};">-${ppFmt(agg.yExpense)}</td>${bs(yBal)}</tr>
+</tbody></table>
 <div class="pp-sec">支払方法別集計</div>
 <table class="pp-tb"><colgroup><col style="width:44mm"><col style="width:20mm"><col style="width:44mm"><col style="width:20mm"></colgroup>
 <thead><tr><th>支払方法</th><th class="pp-r">件数</th><th class="pp-r">金額</th><th class="pp-r">割合</th></tr></thead><tbody>${payRows}</tbody></table>
 <div class="pp-foot">1 / ${total}</div>`;
 }
-function ppDetailPage(month,rows,pageNo,total){
-  const body=rows.map(r=>{
-    const inc=r.type==='income';
-    const d=String(r.date).replace(/-/g,'/').split('/');
-    return `<tr><td>${ppEsc(d[1]||'')}/${ppEsc(d[2]||'')}</td><td>${ppEsc(ppTrunc(r.name,26))}</td><td>${ppEsc(ppTrunc(r.cat,14))}</td><td>${ppEsc(payLabel(ppPay(r)))}</td><td class="pp-r" style="color:${inc?'#1a8f5c':'#c0392b'};">${inc?'+':'-'}${ppFmt(r.amount)}</td></tr>`;
+
+// カテゴリ見出し＋明細を1行単位でページに詰める（見出しだけがページ末に残らないようにする）
+function ppPaginate(groups,cap,sum,count,label){
+  if(!groups.length) return [[{t:'empty',label}]];
+  const pages=[]; let cur=[], used=0;
+  const flush=()=>{ pages.push(cur); cur=[]; used=0; };
+  groups.forEach(g=>{
+    let i=0, cont=false;
+    while(i<g.rows.length){
+      if(cap-used<2) flush();
+      cur.push({t:'head',g,cont}); used++;
+      const take=g.rows.slice(i,i+(cap-used));
+      take.forEach(r=>cur.push({t:'row',r})); used+=take.length; i+=take.length;
+      if(i<g.rows.length){ flush(); cont=true; }
+    }
+  });
+  if(cap-used<1) flush();
+  cur.push({t:'total',sum,count,label}); pages.push(cur);
+  return pages;
+}
+function ppDetailPage(month,title,lines,pageNo,total,cmap,sign,color){
+  const body=lines.map(l=>{
+    if(l.t==='empty') return '';
+    if(l.t==='head'){
+      const g=l.g, em=(userSettings.catEmoji&&userSettings.catEmoji[g.cat])||CAT_EMOJI[g.cat]||'';
+      return `<tr class="pp-gh"><td colspan="3"><span class="pp-dot" style="background:${cmap[g.cat]||'#999'};"></span>${ppEsc(em)} ${ppEsc(ppTrunc(g.cat,24))}　<small style="font-weight:400;color:#666;">${g.rows.length}件${l.cont?'（続き）':''}</small></td><td class="pp-r">${l.cont?'':sign+ppFmt(g.total)}</td></tr>`;
+    }
+    if(l.t==='total') return `<tr class="pp-gt"><td colspan="3">${ppEsc(l.label)}合計（${l.count}件）</td><td class="pp-r" style="color:${color};">${sign}${ppFmt(l.sum)}</td></tr>`;
+    const r=l.r, d=ppNorm(r.date).split('/');
+    return `<tr><td>${ppEsc(d[1]||'')}/${ppEsc(d[2]||'')}</td><td>${ppEsc(ppTrunc(r.name,34))}</td><td>${ppEsc(payLabel(ppPay(r)))}</td><td class="pp-r" style="color:${color};">${sign}${ppFmt(r.amount)}</td></tr>`;
   }).join('');
-  return `<div class="pp-h"><b>${ppTitle(month)}　明細</b><span>家計簿</span></div>
-<table class="pp-tb pp-d"><colgroup><col style="width:13mm"><col style="width:44mm"><col style="width:26mm"><col style="width:22mm"><col style="width:23mm"></colgroup>
-<thead><tr><th>日付</th><th>内容</th><th>カテゴリ</th><th>支払</th><th class="pp-r">金額</th></tr></thead><tbody>${body}</tbody></table>
+  const empty=(lines.length&&lines[0].t==='empty') ? `<div class="pp-empty">この月の${ppEsc(lines[0].label)}はありません</div>` : '';
+  return `<div class="pp-h"><b>${ppTitle(month)}　${title}</b><span>カテゴリー別・金額の大きい順</span></div>
+<table class="pp-tb pp-d"><colgroup><col style="width:13mm"><col style="width:58mm"><col style="width:30mm"><col style="width:27mm"></colgroup>
+<thead><tr><th>日付</th><th>内容</th><th>支払</th><th class="pp-r">金額</th></tr></thead><tbody>${body}</tbody></table>${empty}
 <div class="pp-foot">${pageNo} / ${total}</div>`;
+}
+// 1ページ目＝サマリー、2ページ目＝収入、3ページ目以降＝支出
+function ppBuildPages(month,agg){
+  const inc=ppPaginate(agg.incGroups,PP_ROWS,agg.income,agg.incCount,'収入');
+  const exp=ppPaginate(agg.expGroups,PP_ROWS,agg.expense,agg.expCount,'支出');
+  const total=1+inc.length+exp.length;
+  return [
+    ppPage1(month,agg,total),
+    ...inc.map((ls,i)=>ppDetailPage(month,'収入明細',ls,2+i,total,agg.incColors,'+','#1a8f5c')),
+    ...exp.map((ls,i)=>ppDetailPage(month,'支出明細',ls,2+inc.length+i,total,agg.colors,'-','#c0392b')),
+  ];
 }
 
 function openPdfModal(){
@@ -2065,10 +2158,7 @@ async function makePdf(){
       loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'),
     ]);
     if(document.fonts&&document.fonts.ready) await document.fonts.ready;
-    const detailPages=[];
-    for(let i=0;i<agg.detail.length;i+=PP_ROWS) detailPages.push(agg.detail.slice(i,i+PP_ROWS));
-    const total=1+detailPages.length;
-    const htmls=[ppPage1(month,agg,total), ...detailPages.map((rows,i)=>ppDetailPage(month,rows,i+2,total))];
+    const htmls=ppBuildPages(month,agg);
     wrap=document.createElement('div'); wrap.id='pp-wrap'; wrap.style.cssText='position:absolute;left:-10000px;top:0;';
     htmls.forEach(h=>{ const d=document.createElement('div'); d.className='pp-page'; d.innerHTML=h; wrap.appendChild(d); });
     document.body.appendChild(wrap);
